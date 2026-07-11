@@ -17,12 +17,24 @@ class NowPayments
 
     public function __construct(array $config)
     {
+        // Accept both camelCase and snake_case config keys
+        if (!isset($config['apiKey']) && isset($config['api_key'])) {
+            $config['apiKey'] = $config['api_key'];
+        }
+        if (!isset($config['baseUrl']) && isset($config['base_url'])) {
+            $config['baseUrl'] = $config['base_url'];
+        }
+        if (!isset($config['ipnSecret']) && isset($config['ipn_secret'])) {
+            $config['ipnSecret'] = $config['ipn_secret'];
+        }
+
         $apiKey = $config['apiKey'] ?? '';
         if (!is_string($apiKey) || trim($apiKey) === '') {
             throw new \InvalidArgumentException(
                 'NOWPayments API key is required. Get yours at https://account.nowpayments.io'
             );
         }
+        $config['apiKey'] = trim($apiKey);
         $this->config = array_merge([
             'sandbox' => false,
             'timeout' => 30,
@@ -116,11 +128,22 @@ class NowPayments
     public function createPayment(array $params): array
     {
         $body = $params;
+        $originIp = null;
+        if (isset($body['origin_ip'])) {
+            $originIp = $body['origin_ip'];
+            unset($body['origin_ip']);
+        }
         if (isset($body['fixed_rate']) && !isset($body['is_fixed_rate'])) {
             $body['is_fixed_rate'] = $body['fixed_rate'];
             unset($body['fixed_rate']);
+        } else {
+            unset($body['fixed_rate']);
         }
-        return $this->client->post('/v1/payment', $body);
+        $headers = [];
+        if (is_string($originIp) && trim($originIp) !== '') {
+            $headers['origin-ip'] = trim($originIp);
+        }
+        return $this->client->post('/v1/payment', $body, null, $headers);
     }
 
     /** Get payment status by ID */
@@ -145,13 +168,19 @@ class NowPayments
         if (trim($id) === '') {
             throw new \InvalidArgumentException('Payment ID is required');
         }
-        return $this->client->post('/v1/payment/' . rawurlencode($id) . '/update-merchant-estimate', []);
+        return $this->client->post('/v1/payment/' . rawurlencode($id) . '/update-merchant-estimate', null);
     }
 
     /** Create an invoice */
     public function createInvoice(array $params): array
     {
-        return $this->client->post('/v1/invoice', $params);
+        $body = $params;
+        $headers = [];
+        if (isset($body['origin_ip']) && is_string($body['origin_ip']) && trim($body['origin_ip']) !== '') {
+            $headers['origin-ip'] = trim($body['origin_ip']);
+            unset($body['origin_ip']);
+        }
+        return $this->client->post('/v1/invoice', $body, null, $headers);
     }
 
     /** Create payment for existing invoice */
@@ -264,6 +293,9 @@ class NowPayments
         if (trim($currency) === '') {
             throw new \InvalidArgumentException('Currency is required (e.g. "btc", "eth")');
         }
+        if (!is_finite($amount) || $amount <= 0) {
+            throw new \InvalidArgumentException('Amount must be a positive number');
+        }
         return $this->client->get('/v1/payout/fee', [
             'currency' => $currency,
             'amount' => $amount,
@@ -318,7 +350,12 @@ class NowPayments
         if (trim($jwtToken) === '') {
             throw new \InvalidArgumentException('JWT token is required for createSubPartnerPayment. Call getAuthToken first.');
         }
-        return $this->client->post('/v1/sub-partner/payment', $params, $jwtToken);
+        $body = $params;
+        if (array_key_exists('is_fixed_rate', $body) && !array_key_exists('fixed_rate', $body)) {
+            $body['fixed_rate'] = $body['is_fixed_rate'];
+            unset($body['is_fixed_rate']);
+        }
+        return $this->client->post('/v1/sub-partner/payment', $body, $jwtToken);
     }
 
     /** Create subscription */

@@ -71,12 +71,14 @@ class Ipn
             }
 
             $computedSig = hash_hmac('sha512', $jsonString, trim($ipnSecret), false);
-            $sigHex = preg_replace('/[^a-f0-9]/i', '', $signature);
+            $sigHex = strtolower(trim($signature));
+            if (str_contains($sigHex, '=')) {
+                $sigHex = substr($sigHex, strrpos($sigHex, '=') + 1);
+            }
+            $sigHex = preg_replace('/[^a-f0-9]/', '', $sigHex);
             if ($sigHex === null || $sigHex === '') {
                 return false;
             }
-            // Normalize to lowercase for case-insensitive hex comparison (API may send either)
-            $sigHex = strtolower($sigHex);
             if (strlen($sigHex) !== strlen($computedSig)) {
                 return false;
             }

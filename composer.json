@@ -33,10 +33,5 @@
             "NowPayments\\": "src/"
         }
     },
-    "autoload-dev": {
-        "psr-4": {
-            "NowPayments\\Tests\\": "tests/"
-        }
-    },
     "minimum-stability": "stable"
 }

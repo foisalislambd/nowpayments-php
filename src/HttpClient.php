@@ -42,7 +42,7 @@ class HttpClient
             'timeout' => $timeout,
             'headers' => [
                 'Content-Type' => 'application/json',
-                'x-api-key' => $config['apiKey'],
+                'x-api-key' => trim((string) $config['apiKey']),
             ],
         ]);
     }
@@ -59,12 +59,19 @@ class HttpClient
     }
 
     /**
-     * @param mixed $body Request body (will be JSON encoded)
+     * @param mixed $body Request body (will be JSON encoded). Pass null for empty-body POST.
+     * @param array<string, string> $extraHeaders Extra request headers (e.g. origin-ip)
      * @return array<string, mixed>
      */
-    public function post(string $path, $body = null, ?string $jwtToken = null): array
+    public function post(string $path, $body = null, ?string $jwtToken = null, array $extraHeaders = []): array
     {
-        $options = ['json' => $body];
+        $options = [];
+        if ($body !== null) {
+            $options['json'] = $body;
+        }
+        if ($extraHeaders !== []) {
+            $options['headers'] = $extraHeaders;
+        }
         $options = $this->withJwt($options, $jwtToken);
         return $this->request('POST', $path, $options);
     }
@@ -130,7 +137,15 @@ class HttpClient
             return [];
         }
         $decoded = json_decode($body, true);
-        return is_array($decoded) ? $decoded : [];
+        if (json_last_error() === JSON_ERROR_NONE) {
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+            // JSON scalar (e.g. "OK") — normalize for typed array returns
+            return ['result' => $decoded];
+        }
+        // Plain-text success bodies (e.g. verify payout returns OK)
+        return ['result' => trim($body)];
     }
 
     private function handleRequestException(RequestException $e): NowPaymentsError
