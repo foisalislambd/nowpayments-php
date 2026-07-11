@@ -1,6 +1,6 @@
 {
     "name": "foisalislambd/nowpayments-php",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Full-featured PHP SDK for NOWPayments cryptocurrency payment API",
     "type": "library",
     "license": "MIT",
